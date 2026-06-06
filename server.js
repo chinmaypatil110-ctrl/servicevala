@@ -5,9 +5,6 @@ import path from 'path';
 import dotenv from 'dotenv';
 import multer from 'multer';
 import { fileURLToPath } from 'url';
-import db from './db/connection.js';
-
-dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
