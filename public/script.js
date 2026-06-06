@@ -1,12 +1,59 @@
-// Basic JavaScript for Local Service Provider Platform
+const API_BASE = '/api';
+
+async function fetchCategories() {
+    const response = await fetch(`${API_BASE}/categories`);
+    if (!response.ok) {
+        console.error('Failed to load categories', response.statusText);
+        return [];
+    }
+    return response.json();
+}
+
+async function fetchProviders(category = '', location = '') {
+    const params = new URLSearchParams();
+    if (category) params.append('category', category);
+    if (location) params.append('location', location);
+    const url = `${API_BASE}/providers${params.toString() ? `?${params}` : ''}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+        console.error('Failed to load providers', response.statusText);
+        return [];
+    }
+    return response.json();
+}
+
+function createCategoryCard(category) {
+    const card = document.createElement('div');
+    card.className = 'service-card';
+    card.innerHTML = `
+        <img class="service-image" src="${category.image_url || 'https://via.placeholder.com/400x220?text=Category'}" alt="${category.name}">
+        <h3>${category.name}</h3>
+        <p>Explore providers for ${category.name} services.</p>
+        <a href="/providers?category=${encodeURIComponent(category.name)}">Find Providers</a>
+    `;
+    return card;
+}
+
+function createProviderCard(provider) {
+    const card = document.createElement('div');
+    card.className = 'provider-card';
+    card.innerHTML = `
+        <h3>${provider.name}</h3>
+        <p>Category: ${provider.category}</p>
+        <p>Location: ${provider.location}</p>
+        <p>Rating: ${provider.rating} ⭐</p>
+        <p>Phone: ${provider.phone_number || 'N/A'}</p>
+        <a href="/booking?provider=${provider.id}">Book Now</a>
+    `;
+    return card;
+}
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Search functionality
     const searchButton = document.querySelector('.search-bar button');
     const searchInput = document.querySelector('.search-bar input');
 
     if (searchButton && searchInput) {
-        const performHomeSearch = function() {
+        const performHomeSearch = async function() {
             const query = searchInput.value.trim().toLowerCase();
             const resultsContainer = document.getElementById('home-search-results');
             if (!resultsContainer) return;
@@ -16,7 +63,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            const matchedProviders = getAllProviders().filter(provider => {
+            const providers = await fetchProviders();
+            const matchedProviders = providers.filter(provider => {
                 return provider.name.toLowerCase().includes(query)
                     || provider.category.toLowerCase().includes(query)
                     || provider.location.toLowerCase().includes(query);
@@ -33,19 +81,7 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
 
             const resultGrid = resultsContainer.querySelector('.result-grid');
-            matchedProviders.forEach(provider => {
-                const card = document.createElement('div');
-                card.className = 'search-result-card';
-                card.innerHTML = `
-                    <h4>${provider.name}</h4>
-                    <p><strong>Category:</strong> ${provider.category}</p>
-                    <p><strong>Location:</strong> ${provider.location}</p>
-                    <p><strong>Rating:</strong> ${provider.rating} ⭐</p>
-                    <p><strong>Hourly Rate:</strong> ₹${provider.hourlyRate}</p>
-                    <a href="/booking?provider=${provider.id}">Book Now</a>
-                `;
-                resultGrid.appendChild(card);
-            });
+            matchedProviders.forEach(provider => resultGrid.appendChild(createProviderCard(provider)));
         };
 
         searchButton.addEventListener('click', performHomeSearch);
@@ -57,7 +93,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Smooth scrolling for navigation links (only for same page)
     const navLinks = document.querySelectorAll('nav a');
     navLinks.forEach(link => {
         link.addEventListener('click', function(e) {
@@ -84,7 +119,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Service card hover effects
     const serviceCards = document.querySelectorAll('.service-card');
     serviceCards.forEach(card => {
         card.addEventListener('mouseenter', function() {
@@ -98,28 +132,20 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Auth tabs (removed since /login no longer has tabs)
-    // const tabButtons = document.querySelectorAll('.tab-button');
-    // tabButtons.forEach(button => {
-    //     button.addEventListener('click', function() {
-    //         const tabName = this.getAttribute('onclick').match(/'([^']+)'/)[1];
-    //         showTab(tabName);
-    //     });
-    // });
-
-    // Provider search
     const searchProvidersBtn = document.querySelector('button[onclick="searchProviders()"]');
     if (searchProvidersBtn) {
         searchProvidersBtn.addEventListener('click', searchProviders);
     }
 
-    // Booking form service type change
     const serviceTypeSelect = document.getElementById('service-type');
     if (serviceTypeSelect) {
         serviceTypeSelect.addEventListener('change', populateProviders);
     }
 
-    // Initialize providers list if on providers page
+    if (document.getElementById('category-grid')) {
+        loadCategories();
+    }
+
     if (document.getElementById('providers-list')) {
         const urlParams = new URLSearchParams(window.location.search);
         const category = urlParams.get('category');
@@ -129,160 +155,145 @@ document.addEventListener('DOMContentLoaded', function() {
         loadProviders();
     }
 
-    const commentForm = document.getElementById('comment-form');
-    if (commentForm) {
-        loadComments();
-        commentForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const nameInput = document.getElementById('comment-name');
-            const messageInput = document.getElementById('comment-message');
-            const name = nameInput.value.trim() || 'Anonymous';
-            const message = messageInput.value.trim();
-            if (!message) return;
-            saveComment({
-                name,
-                message,
-                reply: 'Thank you for your feedback! Our team will review and respond shortly.'
-            });
-            loadComments();
-            commentForm.reset();
-        });
-    }
-
-    // Form submissions
-    const authForms = document.querySelectorAll('.auth-form form');
-    authForms.forEach(form => {
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            alert('Form submitted successfully!');
-            // Here you would handle actual form submission
-        });
-    });
-
     const bookingForm = document.querySelector('.booking-form');
     if (bookingForm) {
-        bookingForm.addEventListener('submit', function(e) {
+        bookingForm.addEventListener('submit', async function(e) {
             e.preventDefault();
-            alert('Booking request submitted!');
-            // Here you would handle booking logic
+
+            const providerId = document.getElementById('provider').value;
+            const date = document.getElementById('date').value;
+            const time = document.getElementById('time').value;
+            const location = document.getElementById('location').value.trim();
+            const description = document.getElementById('description').value.trim();
+            const photoFile = document.getElementById('photo_file')?.files[0];
+            const videoFile = document.getElementById('video_file')?.files[0];
+
+            if (!providerId || !date || !time || !location) {
+                alert('Please select a provider and fill in the booking details.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('providerId', providerId);
+            formData.append('name', 'Guest');
+            formData.append('phone', 'N/A');
+            formData.append('date', date);
+            formData.append('time', time);
+            formData.append('location', location);
+            formData.append('description', description);
+            if (photoFile) formData.append('photo_file', photoFile);
+            if (videoFile) formData.append('video_file', videoFile);
+
+            const response = await fetch(`${API_BASE}/bookings`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                alert('Booking request submitted successfully!');
+                bookingForm.reset();
+            } else {
+                const error = await response.json();
+                alert(error?.error || 'Booking submission failed.');
+            }
         });
     }
 
     const profileForm = document.querySelector('.profile-form');
     if (profileForm) {
-        profileForm.addEventListener('submit', function(e) {
+        profileForm.addEventListener('submit', async function(e) {
             e.preventDefault();
-            const newProvider = {
-                id: getNextProviderId(),
-                name: document.getElementById('full-name').value.trim(),
-                category: document.getElementById('service-category').value,
-                location: document.getElementById('location').value.trim(),
-                rating: 4.5,
-                hourlyRate: Number(document.getElementById('hourly-rate').value),
-                experience: Number(document.getElementById('experience').value),
-                description: document.getElementById('description').value.trim(),
-                certifications: document.getElementById('certifications').value.trim()
-            };
-            saveProviderToStorage(newProvider);
-            alert('Provider registered successfully! Your details have been added to the providers list.');
-            profileForm.reset();
-            window.location.href = '/providers';
+            const name = document.getElementById('full-name').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            const category = document.getElementById('service-category').value;
+            const location = document.getElementById('location').value.trim();
+
+            if (!name || !phone || !category || !location) {
+                alert('Please fill in the required fields.');
+                return;
+            }
+
+            const response = await fetch(`${API_BASE}/providers`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    category,
+                    location,
+                    phone_number: phone
+                })
+            });
+
+            if (response.ok) {
+                alert('Provider registered successfully!');
+                profileForm.reset();
+                window.location.href = '/providers';
+            } else {
+                const error = await response.json();
+                alert(error?.error || 'Registration failed.');
+            }
         });
     }
 });
 
-// Mock data for providers
-const mockProviders = [
-    { id: 1, name: 'Rajesh Sharma', category: 'electricians', location: 'Mumbai', rating: 4.5, hourlyRate: 500 },
-    { id: 2, name: 'Suresh Patil', category: 'electricians', location: 'Pune', rating: 4.7, hourlyRate: 550 },
-    { id: 3, name: 'Anil Deshmukh', category: 'plumbers', location: 'Nagpur', rating: 4.8, hourlyRate: 400 },
-    { id: 4, name: 'Sunil Joshi', category: 'plumbers', location: 'Thane', rating: 4.6, hourlyRate: 450 },
-    { id: 5, name: 'Vijay Kulkarni', category: 'mechanics', location: 'Nashik', rating: 4.2, hourlyRate: 600 },
-    { id: 6, name: 'Prakash More', category: 'mechanics', location: 'Sambhajinagar', rating: 4.4, hourlyRate: 650 },
-    { id: 7, name: 'Ramesh Gaikwad', category: 'welders', location: 'Mumbai', rating: 4.3, hourlyRate: 700 },
-    { id: 8, name: 'Ganesh Pawar', category: 'welders', location: 'Pune', rating: 4.5, hourlyRate: 750 },
-    { id: 9, name: 'Mahesh Bhosale', category: 'fitters', location: 'Nagpur', rating: 4.6, hourlyRate: 500 },
-    { id: 10, name: 'Dinesh Jadhav', category: 'fitters', location: 'Thane', rating: 4.4, hourlyRate: 550 },
-    { id: 11, name: 'Kishore Salunkhe', category: 'solar', location: 'Nashik', rating: 4.7, hourlyRate: 800 },
-    { id: 12, name: 'Ashok Mane', category: 'computer', location: 'Sambhajinagar', rating: 4.5, hourlyRate: 400 },
-    { id: 13, name: 'Dilip Chavan', category: 'nursing', location: 'Mumbai', rating: 4.8, hourlyRate: 300 },
-    { id: 14, name: 'Santosh Shinde', category: 'dj', location: 'Pune', rating: 4.6, hourlyRate: 1000 },
-    { id: 15, name: 'Rajendra Kale', category: 'carpenters', location: 'Nagpur', rating: 4.4, hourlyRate: 600 },
-    { id: 16, name: 'Vinayak Gokhale', category: 'carpenters', location: 'Thane', rating: 4.5, hourlyRate: 650 },
-    { id: 17, name: 'Arunrao Sawant', category: 'painters', location: 'Nashik', rating: 4.3, hourlyRate: 500 },
-    { id: 18, name: 'Balaji Rane', category: 'painters', location: 'Sambhajinagar', rating: 4.5, hourlyRate: 550 },
-    { id: 19, name: 'Chandrakant Dixit', category: 'gardeners', location: 'Mumbai', rating: 4.6, hourlyRate: 400 },
-    { id: 20, name: 'Deepakrao Mahajan', category: 'gardeners', location: 'Pune', rating: 4.7, hourlyRate: 450 },
-    { id: 21, name: 'Eknathrao Bhandari', category: 'tutors', location: 'Nagpur', rating: 4.8, hourlyRate: 300 },
-    { id: 22, name: 'Firoz Khan', category: 'tutors', location: 'Thane', rating: 4.9, hourlyRate: 350 },
-    { id: 23, name: 'Gajananrao Deshpande', category: 'electricians', location: 'Nashik', rating: 4.4, hourlyRate: 520 },
-    { id: 24, name: 'Avinash Mali', category: 'computer', location: 'Jalgaon', rating: 4.6, hourlyRate: 420 },
-    { id: 25, name: 'Ankit Visave', category: 'fitters', location: 'Chopada', rating: 4.5, hourlyRate: 530 }
-];
-
-// Load providers
-function loadProviders() {
+async function loadProviders() {
     const providersList = document.getElementById('providers-list');
     if (!providersList) return;
-    
+
+    const category = document.getElementById('category-select')?.value || '';
+    const providers = await fetchProviders(category);
+
     providersList.innerHTML = '';
-    getAllProviders().forEach(provider => {
-        const providerCard = document.createElement('div');
-        providerCard.className = 'provider-card';
-        providerCard.innerHTML = `
-            <h3>${provider.name}</h3>
-            <p>Category: ${provider.category}</p>
-            <p>Location: ${provider.location}</p>
-            <p>Rating: ${provider.rating} ⭐</p>
-            <p>Hourly Rate: ₹${provider.hourlyRate}</p>
-            <a href="/booking?provider=${provider.id}">Book Now</a>
-        `;
-        providersList.appendChild(providerCard);
-    });
+    if (!providers.length) {
+        providersList.innerHTML = '<p class="loading-message">No providers found for this filter.</p>';
+        return;
+    }
+
+    providers.forEach(provider => providersList.appendChild(createProviderCard(provider)));
 }
 
-// Search providers
-function searchProviders() {
+async function searchProviders() {
     const category = document.getElementById('category-select').value;
-    const location = document.getElementById('location-input').value.toLowerCase();
-    
-    const filteredProviders = getAllProviders().filter(provider => {
-        const categoryMatch = !category || provider.category === category;
-        const locationMatch = !location || provider.location.toLowerCase().includes(location);
-        return categoryMatch && locationMatch;
-    });
-    
+    const location = document.getElementById('location-input').value.trim();
+    const providers = await fetchProviders(category, location);
     const providersList = document.getElementById('providers-list');
+    if (!providersList) return;
+
     providersList.innerHTML = '';
-    filteredProviders.forEach(provider => {
-        const providerCard = document.createElement('div');
-        providerCard.className = 'provider-card';
-        providerCard.innerHTML = `
-            <h3>${provider.name}</h3>
-            <p>Category: ${provider.category}</p>
-            <p>Location: ${provider.location}</p>
-            <p>Rating: ${provider.rating} ⭐</p>
-            <p>Hourly Rate: ₹${provider.hourlyRate}</p>
-            <a href="/booking?provider=${provider.id}">Book Now</a>
-        `;
-        providersList.appendChild(providerCard);
-    });
+    if (!providers.length) {
+        providersList.innerHTML = '<p class="loading-message">No providers match your search criteria.</p>';
+        return;
+    }
+    providers.forEach(provider => providersList.appendChild(createProviderCard(provider)));
 }
 
-// Populate providers in booking form
-function populateProviders() {
+async function populateProviders() {
     const serviceType = document.getElementById('service-type').value;
     const providerSelect = document.getElementById('provider');
-    
     providerSelect.innerHTML = '<option value="">Select Provider</option>';
-    
-    const filteredProviders = getAllProviders().filter(provider => provider.category === serviceType);
-    filteredProviders.forEach(provider => {
+
+    const providers = await fetchProviders(serviceType);
+    providers.forEach(provider => {
         const option = document.createElement('option');
         option.value = provider.id;
-        option.textContent = `${provider.name} - ₹${provider.hourlyRate}/hr`;
+        option.textContent = `${provider.name} - ${provider.location}`;
         providerSelect.appendChild(option);
     });
+}
+
+async function loadCategories() {
+    const categoryGrid = document.getElementById('category-grid');
+    if (!categoryGrid) return;
+
+    const categories = await fetchCategories();
+    categoryGrid.innerHTML = '';
+
+    if (!categories.length) {
+        categoryGrid.innerHTML = '<p class="loading-message">No categories available right now.</p>';
+        return;
+    }
+
+    categories.forEach(category => categoryGrid.appendChild(createCategoryCard(category)));
 }
 
 function getStoredProviders() {
@@ -296,8 +307,37 @@ function saveProviderToStorage(provider) {
     localStorage.setItem('lspProviders', JSON.stringify(providers));
 }
 
-function getAllProviders() {
-    return [...mockProviders, ...getStoredProviders()];
+function getStoredComments() {
+    const stored = localStorage.getItem('lspComments');
+    return stored ? JSON.parse(stored) : [];
+}
+
+function saveComment(comment) {
+    const comments = getStoredComments();
+    comments.unshift(comment);
+    localStorage.setItem('lspComments', JSON.stringify(comments));
+}
+
+function loadComments() {
+    const commentList = document.getElementById('comment-list');
+    if (!commentList) return;
+    const comments = getStoredComments();
+    if (!comments.length) {
+        commentList.innerHTML = '<p class="no-comments">No comments yet. Share your experience!</p>';
+        return;
+    }
+    commentList.innerHTML = comments.map(comment => `
+        <div class="comment-item">
+            <h4>${comment.name}</h4>
+            <p>${comment.message}</p>
+            <div class="company-reply">
+                <strong>Company Answer:</strong>
+                <p>${comment.reply}</p>
+            </div>
+        </div>
+    `).join('');
+}
+
 }
 
 function getNextProviderId() {

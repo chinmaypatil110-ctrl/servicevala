@@ -44,7 +44,7 @@
                     <div class="hero-card-description">Select your service, confirm availability, and book reliable local pros instantly.</div>
                     <div class="hero-card-meta">
                         <div><strong>15 min</strong><span>Average response</span></div>
-                        <div><strong>98%</strong><span>Satisfaction rate</span></div>
+                        <div><strong>90%</strong><span>Satisfaction rate</span></div>
                     </div>
                 </div>
                 <div class="floating-cards">
@@ -71,7 +71,7 @@
                 <h2>Book a Service</h2>
                 <p>Fill out the booking form below to request a trusted provider for your home or event service.</p>
             </div>
-            <form class="booking-form">
+            <form class="booking-form" enctype="multipart/form-data">
                 <div class="form-group">
                     <label for="service-type">Service Type:</label>
                     <select id="service-type" required>
@@ -89,7 +89,6 @@
                         <option value="painters">Painters</option>
                         <option value="gardeners">Gardeners</option>
                         <option value="tutors">Tutors</option>
-                        <option value="pest">Pest control</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -114,6 +113,14 @@
                 <div class="form-group">
                     <label for="description">Description:</label>
                     <textarea id="description" placeholder="Describe the service needed"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="photo_file">Upload Photo (optional):</label>
+                    <input type="file" id="photo_file" name="photo_file" accept="image/*">
+                </div>
+                <div class="form-group">
+                    <label for="video_file">Upload Video (optional):</label>
+                    <input type="file" id="video_file" name="video_file" accept="video/*">
                 </div>
                 <button type="submit">Book Service</button>
             </form>
