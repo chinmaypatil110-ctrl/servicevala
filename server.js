@@ -1,230 +1,225 @@
 import express from 'express';
-import cors from 'cors';
-import fs from 'fs';
+import { createPool } from 'mysql2/promise';
+import { genSalt, hash, compare } from 'bcrypt';
 import path from 'path';
-import dotenv from 'dotenv';
-import multer from 'multer';
-import { fileURLToPath } from 'url';
+import { fileURLToPath } from 'url'; // 1. Added for ES Module path tracking
+import cors from 'cors';
+import jwt from 'jsonwebtoken';
+import 'dotenv/config'; // Ensures process.env.JWT_SECRET can be read
 
+const { verify, sign } = jwt;
+
+// 2. Safely define __filename and __dirname for ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 const app = express();
-const PORT = process.env.PORT || 3000;
-const VIEWS_DIR = path.join(__dirname, 'views');
 
-const uploadDir = path.join(__dirname, 'public', 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const upload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, uploadDir),
-    filename: (req, file, cb) => {
-      const timestamp = Date.now();
-      const safeName = file.originalname.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-_.]/g, '');
-      cb(null, `${timestamp}-${safeName}`);
-    }
-  }),
-  fileFilter: (req, file, cb) => {
-    if (file.fieldname === 'photo_file' && file.mimetype.startsWith('image/')) {
-      return cb(null, true);
-    }
-    if (file.fieldname === 'video_file' && file.mimetype.startsWith('video/')) {
-      return cb(null, true);
-    }
-    cb(null, false);
-  }
-});
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// ==========================================
+// MIDDLEWARE
+// ==========================================
 app.use(cors());
+app.use(express.json()); // Replaced bodyParser.json() with native Express parser
+app.use(express.urlencoded({ extended: true })); // Replaced bodyParser.urlencoded()
+
+// Static files routing
+app.use(express.static(__dirname)); 
 app.use('/public', express.static(path.join(__dirname, 'public')));
 app.use('/node_modules', express.static(path.join(__dirname, 'node_modules')));
 
+// ==========================================
+// DATABASE CONNECTION
+// ==========================================
+const pool = createPool({
+    host: 'localhost',
+    user: 'root',
+    password: 'dvaraka2003#',
+    database: 'chinmay',
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
+});
+
+// ==========================================
+// FRONTEND VIEWS ROUTES
+// ==========================================
 app.get('/', (req, res) => {
-  res.sendFile(path.join(VIEWS_DIR, 'index.html'));
+    res.sendFile(path.join(__dirname, 'views', 'index.html'));
 });
+
 app.get('/categories', (req, res) => {
-  res.sendFile(path.join(VIEWS_DIR, 'categories.html'));
+    res.sendFile(path.join(__dirname, 'views', 'categories.html'));
 });
+
 app.get('/booking', (req, res) => {
-  res.sendFile(path.join(VIEWS_DIR, 'booking.html'));
+    res.sendFile(path.join(__dirname, 'views', 'booking.html'));
 });
+
 app.get('/costomer-regi', (req, res) => {
-  res.sendFile(path.join(VIEWS_DIR, 'customer-register.html'));
+    res.sendFile(path.join(__dirname, 'views', 'customer-register.html'));
 });
+
 app.get('/providers', (req, res) => {
-  res.sendFile(path.join(VIEWS_DIR, 'providers.html'));
+    res.sendFile(path.join(__dirname, 'views', 'providers.html'));
 });
+
 app.get('/login', (req, res) => {
-  res.sendFile(path.join(VIEWS_DIR, 'login.html'));
+    res.sendFile(path.join(__dirname, 'views', 'login.html'));
 });
+
 app.get('/profile', (req, res) => {
-  res.sendFile(path.join(VIEWS_DIR, 'profile-register.html'));
+    res.sendFile(path.join(__dirname, 'views', 'profile.html'));
 });
+// Authentication Middleware
+// This protects routes that only logged-in users should access
+const authenticateUser = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
 
-async function ensureBookingsTable() {
-  const createTableSql = `
-    CREATE TABLE IF NOT EXISTS bookings (
-      id INT NOT NULL AUTO_INCREMENT,
-      provider_id INT NOT NULL,
-      customer_name VARCHAR(100) NOT NULL,
-      customer_phone VARCHAR(20) NOT NULL,
-      booking_date DATE NOT NULL,
-      booking_time TIME NOT NULL,
-      location VARCHAR(255) NOT NULL,
-      description TEXT,
-      photo_url VARCHAR(1024),
-      video_url VARCHAR(1024),
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-  `;
+    if (!token) return res.status(401).json({ error: "Access denied. No token provided." });
 
-  await db.execute(createTableSql);
-}
-
-ensureBookingsTable().catch(error => {
-  console.error('Error creating bookings table:', error);
-});
-
-app.get('/api/categories', async (req, res) => {
-  try {
-    const [rows] = await db.execute(
-      'SELECT id, name, image_url, is_active FROM categories WHERE is_active = 1 ORDER BY name'
-    );
-    res.json(rows);
-  } catch (error) {
-    console.error('Error loading categories:', error);
-    res.status(500).json({ error: 'Unable to load categories' });
-  }
-});
-
-app.get('/api/providers', async (req, res) => {
-  try {
-    const { category, location } = req.query;
-    let query = 'SELECT id, name, category, location, IFNULL(rating, 0) AS rating, phone_number FROM providers';
-    const filters = [];
-    const values = [];
-
-    if (category) {
-      filters.push('category = ?');
-      values.push(category);
-    }
-    if (location) {
-      filters.push('LOWER(location) LIKE ?');
-      values.push(`%${location.toLowerCase()}%`);
-    }
-    if (filters.length) {
-      query += ` WHERE ${filters.join(' AND ')}`;
-    }
-    query += ' ORDER BY name';
-
-    const [rows] = await db.execute(query, values);
-    res.json(rows);
-  } catch (error) {
-    console.error('Error loading providers:', error);
-    res.status(500).json({ error: 'Unable to load providers' });
-  }
-});
-
-app.get('/api/providers/:id', async (req, res) => {
-  try {
-    const [rows] = await db.execute(
-      'SELECT id, name, category, location, IFNULL(rating, 0) AS rating, phone_number FROM providers WHERE id = ?',
-      [req.params.id]
-    );
-
-    if (!rows.length) {
-      return res.status(404).json({ error: 'Provider not found' });
-    }
-    res.json(rows[0]);
-  } catch (error) {
-    console.error('Error loading provider:', error);
-    res.status(500).json({ error: 'Unable to load provider' });
-  }
-});
-
-app.post('/api/providers', async (req, res) => {
-  try {
-    const { name, category, location, phone_number } = req.body;
-    if (!name || !category || !location) {
-      return res.status(400).json({ error: 'Name, category, and location are required' });
-    }
-
-    const [maxRows] = await db.execute('SELECT MAX(id) AS maxId FROM providers');
-    const nextId = (maxRows[0]?.maxId || 0) + 1;
-
-    await db.execute(
-      'INSERT INTO providers (id, name, category, location, rating, phone_number) VALUES (?, ?, ?, ?, ?, ?)',
-      [nextId, name, category, location, 0, phone_number || null]
-    );
-
-    const [rows] = await db.execute(
-      'SELECT id, name, category, location, IFNULL(rating, 0) AS rating, phone_number FROM providers WHERE id = ?',
-      [nextId]
-    );
-    res.status(201).json(rows[0]);
-  } catch (error) {
-    console.error('Error adding provider:', error);
-    res.status(500).json({ error: 'Unable to save provider' });
-  }
-});
-
-app.post('/api/bookings', upload.fields([
-  { name: 'photo_file', maxCount: 1 },
-  { name: 'video_file', maxCount: 1 }
-]), async (req, res) => {
-  try {
-    const { providerId, name, phone, date, time, location, description } = req.body;
-    if (!providerId || !date || !time || !location) {
-      return res.status(400).json({ error: 'Provider, date, time, and location are required' });
-    }
-
-    const customerName = name || 'Guest';
-    const customerPhone = phone || 'N/A';
-    const photoFile = req.files?.photo_file?.[0];
-    const videoFile = req.files?.video_file?.[0];
-    const photoUrl = photoFile ? `/public/uploads/${photoFile.filename}` : null;
-    const videoUrl = videoFile ? `/public/uploads/${videoFile.filename}` : null;
-
-    const [result] = await db.execute(
-      `INSERT INTO bookings (provider_id, customer_name, customer_phone, booking_date, booking_time, location, description, photo_url, video_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [providerId, customerName, customerPhone, date, time, location, description || null, photoUrl, videoUrl]
-    );
-
-    res.status(201).json({
-      id: result.insertId,
-      providerId,
-      name: customerName,
-      phone: customerPhone,
-      date,
-      time,
-      location,
-      description: description || '',
-      photo_url: photoUrl,
-      video_url: videoUrl
+    verify(token, process.env.JWT_SECRET, (err, user) => {
+        if (err) return res.status(403).json({ error: "Invalid token." });
+        req.user = user;
+        next();
     });
-  } catch (error) {
-    console.error('Error saving booking:', error);
-    res.status(500).json({ error: 'Unable to save booking' });
-  }
+};
+
+// ==========================================
+// 1. AUTHENTICATION ROUTES (Signup & Login)
+// ==========================================
+
+// Sign Up
+app.post('/api/signup', async (req, res) => {
+    const { username, email, password, phone_number, street_address, city, state, postal_code } = req.body;
+
+    try {
+        // Hash the password before saving to the database
+        const salt = await genSalt(10);
+        const password_hash = await hash(password, salt);
+
+        const [result] = await pool.query(
+            `INSERT INTO users (username, email, password_hash, phone_number, street_address, city, state, postal_code) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [username, email, password_hash, phone_number, street_address, city, state, postal_code]
+        );
+
+        res.status(201).json({ message: "User created successfully!", userId: result.insertId });
+    } catch (error) {
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(400).json({ error: "Username or Email already exists." });
+        }
+        res.status(500).json({ error: "Internal server error." });
+    }
 });
 
-app.get('/api/status', (req, res) => {
-  res.json({ status: 'OK', service: 'servicवाला backend' });
+// Log In
+app.post('/api/login', async (req, res) => {
+    const { email, password } = req.body;
+
+    try {
+        const [users] = await pool.query(`SELECT * FROM users WHERE email = ?`, [email]);
+        
+        if (users.length === 0) {
+            return res.status(401).json({ error: "Invalid email or password." });
+        }
+
+        const user = users[0];
+        const validPassword = await compare(password, user.password_hash);
+
+        if (!validPassword) {
+            return res.status(401).json({ error: "Invalid email or password." });
+        }
+
+        // Generate JWT Token
+        const token = sign({ id: user.id, username: user.username }, process.env.JWT_SECRET, { expiresIn: '24h' });
+
+        res.json({ message: "Logged in successfully", token });
+    } catch (error) {
+        res.status(500).json({ error: "Internal server error." });
+    }
 });
 
-app.get('*', (req, res) => {
-  if (req.path.startsWith('/api/')) {
-    return res.status(404).json({ error: 'API endpoint not found' });
-  }
-  res.sendFile(path.join(VIEWS_DIR, 'index.html'));
+// ==========================================
+// 2. CATEGORIES & PROVIDERS
+// ==========================================
+
+// Get all active categories
+app.get('/api/categories', async (req, res) => {
+    try {
+        const [categories] = await pool.query(`SELECT * FROM categories WHERE is_active = 1`);
+        res.json(categories);
+    } catch (error) {
+        res.status(500).json({ error: "Failed to fetch categories." });
+    }
 });
 
+// Get providers (with optional category filter)
+app.get('/api/providers', async (req, res) => {
+    const { category } = req.query;
+    try {
+        let query = `SELECT id, name, category, location, rating FROM providers`;
+        let params = [];
+
+        if (category) {
+            query += ` WHERE category = ?`;
+            params.push(category);
+        }
+
+        const [providers] = await pool.query(query, params);
+        res.json(providers);
+    } catch (error) {
+        res.status(500).json({ error: "Failed to fetch providers." });
+    }
+});
+
+// ==========================================
+// 3. BOOKINGS
+// ==========================================
+
+// Create a new booking (Protected Route)
+app.post('/api/bookings', authenticateUser, async (req, res) => {
+    const { provider_id, service_id, scheduled_date, scheduled_time, service_address, pincode, total_amount } = req.body;
+    const customer_id = req.user.id; // Extracted from JWT token
+
+    try {
+        const [result] = await pool.query(
+            `INSERT INTO bookings 
+            (customer_id, provider_id, service_id, scheduled_date, scheduled_time, service_address, pincode, total_amount, booking_status) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+            [customer_id, provider_id || null, service_id, scheduled_date, scheduled_time, service_address, pincode, total_amount]
+        );
+
+        res.status(201).json({ message: "Booking created successfully!", bookingId: result.insertId });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Failed to create booking." });
+    }
+});
+
+// Get logged-in user's bookings (Protected Route)
+app.get('/api/bookings/my-bookings', authenticateUser, async (req, res) => {
+    const customer_id = req.user.id;
+
+    try {
+        const [bookings] = await pool.query(
+            `SELECT b.*, p.name AS provider_name, c.name AS service_name 
+             FROM bookings b
+             LEFT JOIN providers p ON b.provider_id = p.id
+             JOIN categories c ON b.service_id = c.id
+             WHERE b.customer_id = ?
+             ORDER BY b.scheduled_date DESC, b.scheduled_time DESC`,
+            [customer_id]
+        );
+
+        res.json(bookings);
+    } catch (error) {
+        res.status(500).json({ error: "Failed to fetch bookings." });
+    }
+});
+
+// Start the Server
+const PORT = 3000;
 app.listen(PORT, () => {
-  console.log(`servicवाला backend server running on http://localhost:${PORT}`);
+    console.log(`Server is running on port http://localhost:${PORT}`);
 });

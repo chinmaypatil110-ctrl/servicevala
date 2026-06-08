@@ -338,7 +338,6 @@ function loadComments() {
     `).join('');
 }
 
-}
 
 function getNextProviderId() {
     return getAllProviders().reduce((maxId, provider) => Math.max(maxId, provider.id), 0) + 1;
