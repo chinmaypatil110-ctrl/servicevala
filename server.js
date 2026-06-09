@@ -37,8 +37,8 @@ const pool = createPool({
     host: 'localhost',
     user: 'root',
     port: 3306,
-    password: 'root', 
-    database: 'testdb',
+    password: 'dvaraka2003', 
+    database: 'chinmay',
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0
