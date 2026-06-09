@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Book Service - LSP</title>
-    <link rel="stylesheet" href="/public/style.css">
+    <link rel="stylesheet" href="/style.css">
 </head>
+
 <body>
     <header class="main-header">
         <div class="container header-inner">
@@ -41,7 +43,8 @@
             <div class="hero-visual">
                 <div class="hero-card hero-card-large">
                     <div class="hero-card-title">Quick booking</div>
-                    <div class="hero-card-description">Select your service, confirm availability, and book reliable local pros instantly.</div>
+                    <div class="hero-card-description">Select your service, confirm availability, and book reliable
+                        local pros instantly.</div>
                     <div class="hero-card-meta">
                         <div><strong>15 min</strong><span>Average response</span></div>
                         <div><strong>90%</strong><span>Satisfaction rate</span></div>
@@ -71,61 +74,58 @@
                 <h2>Book a Service</h2>
                 <p>Fill out the booking form below to request a trusted provider for your home or event service.</p>
             </div>
-            <form class="booking-form" enctype="multipart/form-data">
-                <div class="form-group">
-                    <label for="service-type">Service Type:</label>
-                    <select id="service-type" required>
-                        <option value="">Select Service</option>
-                        <option value="electricians">Electricians</option>
-                        <option value="plumbers">Plumbers</option>
-                        <option value="mechanics">Mechanics</option>
-                        <option value="welders">Welders</option>
-                        <option value="fitters">Fitters</option>
-                        <option value="solar">Solar Panel Fitters</option>
-                        <option value="computer">Computer Operators</option>
-                        <option value="nursing">Nursing Workers</option>
-                        <option value="dj">DJ Operators</option>
-                        <option value="carpenters">Carpenters</option>
-                        <option value="painters">Painters</option>
-                        <option value="gardeners">Gardeners</option>
-                        <option value="tutors">Tutors</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="provider">Provider:</label>
-                    <select id="provider" required>
-                        <option value="">Select Provider</option>
-                        <!-- Options populated based on service type -->
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="date">Date:</label>
-                    <input type="date" id="date" required>
-                </div>
-                <div class="form-group">
-                    <label for="time">Time:</label>
-                    <input type="time" id="time" required>
-                </div>
-                <div class="form-group">
-                    <label for="location">Location:</label>
-                    <input type="text" id="location" placeholder="Enter service location" required>
-                </div>
-                <div class="form-group">
-                    <label for="description">Description:</label>
-                    <textarea id="description" placeholder="Describe the service needed"></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="photo_file">Upload Photo (optional):</label>
-                    <input type="file" id="photo_file" name="photo_file" accept="image/*">
-                </div>
-                <div class="form-group">
-                    <label for="video_file">Upload Video (optional):</label>
-                    <input type="file" id="video_file" name="video_file" accept="video/*">
-                </div>
-                <button type="submit">Book Service</button>
-            </form>
+            <form class="booking-form">
+  <div class="form-group">
+    <label for="service-type">Service Type:</label>
+    <select id="service-type" required>
+        <option value="">Select Service</option>
+        <option value="1">Electricians</option>
+        <option value="2">Plumbers</option>
+        <option value="3">Mechanics</option>
+        <option value="4">Welders</option>
+        <option value="5">Fitters</option>
+        <option value="6">Solar Panel Fitters</option>
+        <option value="7">Computer Operators</option>
+        <option value="8">Nursing Workers</option>
+        <option value="9">DJ Operators</option>
+        <option value="10">Carpenters</option>
+        <option value="11">Painters</option>
+        <option value="12">Gardeners</option>
+        <option value="13">Tutors</option>
+    </select>
+</div>
+
+<div class="form-group">
+    <label for="provider">Provider:</label>
+    <select id="provider">
+        <option value="Mechanic">Select Provider</option>
+        </select>
+</div>
+    <div class="form-group">
+        <label for="date">Date:</label>
+        <input type="date" id="date" required>
+    </div>
+    <div class="form-group">
+        <label for="time">Time:</label>
+        <input type="time" id="time" required>
+    </div>
+    <div class="form-group">
+        <label for="location">Location Address:</label>
+        <input type="text" id="location" placeholder="Enter service location" required>
+    </div>
+    <div class="form-group">
+        <label for="pincode">Pincode:</label>
+        <input type="text" id="pincode" maxlength="6" placeholder="e.g. 425405" required>
+    </div>
+    <div class="form-group">
+        <label for="description">Description:</label>
+        <textarea id="description" placeholder="Describe the service needed"></textarea>
+    </div>
+    <button type="submit">Book Service</button>
+</form>
         </div>
     </section>
 
- <script src="/public/script.js"></script>
+    <script src="/script.js"></script>
+
 </html>
